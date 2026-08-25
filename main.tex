@@ -33,13 +33,138 @@ Universidad Técnica Estatal de Quevedo (UTEQ)}
 \section{Introducción}
 \label{sec:intro}
 
+El presente informe documenta la aplicación de la guía de práctica
+experimental correspondiente a GA-SUM-06 / PE-U5 --- CI/CD, Pruebas y
+Observabilidad, de la asignatura Aplicaciones Distribuidas, sobre el
+Sistema de Control de Laboratorios Informáticos (SCLI), desarrollado
+como Proyecto de Fin de Curso por el equipo FUVV. El sistema sigue una
+arquitectura de microservicios desplegados de forma independiente y
+comunicados a través de un \emph{API Gateway}, con persistencia
+distribuida sobre un clúster de CockroachDB.
+
+Este documento se centra en el trabajo realizado por el autor sobre el
+microservicio \texttt{academico-laboratorios-service}, responsable de
+la gestión del dominio académico del sistema (campus, facultades,
+carreras, laboratorios, equipos y horarios), así como en la aplicación
+transversal de las prácticas de integración continua, pruebas
+automatizadas y observabilidad distribuida al conjunto del proyecto,
+en la medida en que dichas prácticas fueron verificadas directamente
+sobre el repositorio del PFC.
+
+El objetivo de este informe es doble: por un lado, evidenciar de
+manera honesta y verificable el estado real de implementación de cada
+práctica exigida por la guía; por otro, reflexionar críticamente sobre
+las decisiones técnicas tomadas, sus fundamentos teóricos y sus
+limitaciones, siguiendo el criterio de que toda medición reportada
+debe estar respaldada por evidencia reproducible y no por
+estimaciones.
+
 \section{Arquitectura en capas y patrones de diseño distribuido}
 \label{sec:arquitectura}
+
+\subsection{Arquitectura hexagonal en \texttt{academico-laboratorios-service}}
+
+El microservicio \texttt{academico-laboratorios-service} fue refactorizado
+siguiendo el patrón de arquitectura hexagonal (\emph{Ports and Adapters}),
+organizando el código en cuatro capas: dominio, aplicación,
+infraestructura y presentación. Las once entidades del dominio académico
+(Campus, Facultad, Carrera, Piso, Laboratorio, TipoEquipo, Equipo,
+Materia, PeriodoLectivo, Bloque y HorarioAcademico) se implementaron bajo
+este esquema, desacoplando la lógica de negocio de los detalles de
+persistencia y de exposición HTTP.
+
+Esta separación responde a los principios SOLID aplicados a
+microservicios: el principio de responsabilidad única se refleja en la
+separación entre puertos de dominio y adaptadores de infraestructura, y
+el principio de inversión de dependencias se materializa mediante
+interfaces de repositorio definidas en la capa de dominio e implementadas
+en la capa de infraestructura, evitando que la lógica de negocio dependa
+de un motor de persistencia concreto.
+
+\subsection{Patrón Repository}
+
+Cada entidad del dominio académico cuenta con una interfaz de repositorio
+definida en la capa de dominio, con su implementación correspondiente en
+la capa de infraestructura sobre Spring Data JPA. Esta decisión permite
+sustituir el mecanismo de persistencia sin alterar la lógica de negocio,
+y facilita las pruebas unitarias mediante dobles de prueba de los
+puertos de repositorio.
+
+\subsection{Patrón Facade}
+
+El endpoint \texttt{GET /api/v1/laboratorios/\{id\}/detalle-completo}
+expone la vista consolidada de un laboratorio, que requiere coordinar
+información de cinco servicios de dominio distintos (laboratorio, piso,
+facultad, equipos y horarios). En lugar de exponer esta orquestación al
+cliente, se implementó el patrón Facade mediante la interfaz
+\texttt{LaboratorioDetalleFacade} y su implementación, que centraliza la
+coordinación de dichos servicios detrás de un único punto de entrada,
+reduciendo el acoplamiento entre la capa de presentación y la lógica de
+orquestación interna.
+
+\subsection{Patrón Singleton}
+
+El registro de métricas HTTP del servicio, \texttt{HttpRequestsMetricsRegistry},
+se implementa como Singleton para garantizar una única instancia
+compartida de los contadores de Micrometer a lo largo del ciclo de vida
+de la aplicación, evitando la duplicación de series temporales en
+Prometheus.
 % 5.1 de la guía
 
 \section{Pruebas en sistemas distribuidos}
 \label{sec:pruebas}
-% 5.2 de la guía
+
+\subsection{Pirámide de pruebas del sistema}
+
+La estrategia de pruebas del PFC cubre varios niveles complementarios.
+En el nivel unitario, cada microservicio backend emplea JUnit~5 y
+Mockito, aislando la lógica de negocio de sus dependencias mediante
+dobles de prueba de los puertos de dominio definidos por la arquitectura
+hexagonal, sin requerir infraestructura real. En el nivel de integración,
+las pruebas se ejecutan contra instancias reales de CockroachDB
+mediante Docker Compose, verificando el comportamiento real de las
+consultas y transacciones frente al motor de persistencia utilizado en
+producción. En el nivel de extremo a extremo, la aplicación web se
+prueba con Playwright sobre tres motores de navegador (Chromium,
+Firefox y WebKit), y la aplicación móvil emplea pruebas instrumentadas
+con Espresso sobre un emulador Android API~34.
+
+\subsection{Pruebas sobre \texttt{academico-laboratorios-service}}
+
+El microservicio bajo responsabilidad del autor cuenta con 254 pruebas,
+alcanzando una cobertura de líneas igual o superior al 70\,\%, medida
+mediante el plugin \texttt{jacoco-maven-plugin} configurado en el ciclo
+de vida de Maven con la regla \texttt{jacoco:check}. Entre estas pruebas
+se incluye una verificación de contexto (\texttt{contextLoads}) que
+levanta el contexto completo de Spring Boot contra una instancia real de
+CockroachDB, no contra una base de datos en memoria, para garantizar que
+la configuración de persistencia es válida en condiciones equivalentes a
+producción.
+
+\subsection{Pruebas instrumentadas de la funcionalidad móvil de escaneo QR}
+
+Sobre la funcionalidad de escaneo de código QR de la aplicación móvil,
+implementada con CameraX y ML Kit Barcode Scanning, se desarrolló la
+suite \texttt{QrFlowTest}, compuesta por tres pruebas instrumentadas:
+verificación de que un código QR válido muestra el detalle del
+laboratorio correspondiente, verificación de que un identificador UUID
+inválido produce un mensaje de error apropiado, y verificación de que
+un error de red se comunica al usuario a través de un mensaje específico
+del \emph{gateway}. Estas pruebas se ejecutan sobre un emulador Pixel~8
+con API~34, debido a una incompatibilidad conocida entre Espresso~3.6.1
+y las API~35 o superiores.
+
+\subsection{Cobertura verificada en el resto de microservicios}
+
+Al momento de este informe, la cobertura de código medida con JaCoCo
+está confirmada y documentada para dos de los cinco microservicios del
+sistema: \texttt{academico-laboratorios-service} (igual o superior al
+70\,\%, 254 pruebas) y \texttt{reservas-solicitudes-service} (superior
+al 80\,\% en líneas y superior al 48\,\% en ramas, 110 pruebas). La
+cobertura de \texttt{usuarios-service}, \texttt{auth-service} y
+\texttt{api-gateway} no se reporta en este informe por no contar con
+verificación directa al momento de su redacción, en línea con el
+criterio de no presentar como medida un dato que no ha sido confirmado.
 
 \section{DevOps: CI/CD con GitHub Actions}
 \label{sec:cicd}
