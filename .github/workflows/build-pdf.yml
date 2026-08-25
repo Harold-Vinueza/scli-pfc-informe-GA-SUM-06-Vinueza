@@ -1,0 +1,33 @@
+name: Compilar informe PDF
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'main.tex'
+      - 'referencias/**'
+      - '.github/workflows/build-pdf.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  build-pdf:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compilar main.tex con latexmk
+        uses: xu-cheng/latex-action@v3
+        with:
+          root_file: main.tex
+          latexmk_use_xelatex: false
+          args: -pdf -interaction=nonstopmode -halt-on-error
+
+      - name: Confirmar y subir main.pdf compilado
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "docs: recompilar main.pdf [skip ci]"
+          file_pattern: main.pdf

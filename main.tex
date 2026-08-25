@@ -1,0 +1,65 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{titlesec}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{listings}
+\usepackage{hyperref}
+\usepackage{cite}
+
+\titleformat{\section}{\normalfont\large\bfseries}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalfont\normalsize\bfseries}{\thesubsection.}{0.5em}{}
+
+\title{Informe de Aplicación de la Guía de Práctica Experimental\\
+Aplicaciones Distribuidas --- Entrega 4 (PFC)\\
+\large GA-SUM-06 / PE-U5: CI/CD, Pruebas y Observabilidad}
+\author{Harold Nicolás Vinueza Sánchez\\
+Carrera de Software, Facultad de Ciencias de la Computación\\
+Universidad Técnica Estatal de Quevedo (UTEQ)}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+(resumen de una página máx.: qué se hizo, sobre qué sistema, con qué resultado)
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\section{Introducción}
+\label{sec:intro}
+
+\section{Arquitectura en capas y patrones de diseño distribuido}
+\label{sec:arquitectura}
+% 5.1 de la guía
+
+\section{Pruebas en sistemas distribuidos}
+\label{sec:pruebas}
+% 5.2 de la guía
+
+\section{DevOps: CI/CD con GitHub Actions}
+\label{sec:cicd}
+% 5.3 de la guía
+
+\section{Observabilidad distribuida}
+\label{sec:observabilidad}
+% 5.4 de la guía (parte 1)
+
+\section{Evaluación de calidad ISO/IEC 25010:2023}
+\label{sec:iso25010}
+% 5.4 de la guía (parte 2)
+
+\section{Reflexión ética}
+\label{sec:etica}
+
+\section{Conclusiones}
+\label{sec:conclusiones}
+
+\bibliographystyle{ieeetr}
+\bibliography{referencias/bibliografia}
+
+\end{document}
