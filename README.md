@@ -13,15 +13,18 @@ de Curso (ISR-701).
 
 ## Estructura del repo
 
-main.tex -> documento fuente LaTeX (informe completo)
-main.pdf -> documento compilado (entregable final)
-referencias/
-bibliografia.bib -> referencias en formato BibTeX (estilo IEEE)
-fuentes-pdf/
-*.pdf -> PDFs de las referencias con DOI, subrayados
-con comentarios indicando en qué sección
-del informe se utiliza cada fragmento
+## Estructura del repo
 
+​```
+main.tex              -> documento fuente LaTeX (informe completo)
+main.pdf               -> documento compilado (entregable final)
+referencias/
+  bibliografia.bib     -> referencias en formato BibTeX (estilo IEEE)
+fuentes-pdf/
+  *.pdf                -> PDFs de las referencias con DOI, subrayados
+                           con comentarios indicando en qué sección
+                           del informe se utiliza cada fragmento
+​```
 
 ## Cómo compilar el documento
 
