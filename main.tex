@@ -24,7 +24,19 @@ Universidad Técnica Estatal de Quevedo (UTEQ)}
 \maketitle
 
 \begin{abstract}
-(resumen de una página máx.: qué se hizo, sobre qué sistema, con qué resultado)
+Este informe documenta la aplicación individual de la guía de práctica
+experimental GA-SUM-06 / PE-U5 --- CI/CD, Pruebas y Observabilidad ---
+sobre el Sistema de Control de Laboratorios Informáticos (SCLI),
+desarrollado como Proyecto de Fin de Curso. Se describe la arquitectura
+hexagonal y los patrones de diseño aplicados al microservicio
+\texttt{academico-laboratorios-service}, la estrategia de pruebas
+automatizadas del sistema y su cobertura verificada, el pipeline de
+integración continua implementado con GitHub Actions, la
+instrumentación de observabilidad distribuida, y la evaluación parcial
+de calidad según ISO/IEC 25010:2023. El informe adopta un criterio de
+honestidad experimental: toda práctica o métrica que no cuenta con
+evidencia verificada directamente sobre el repositorio se reporta como
+pendiente, en lugar de completarse con valores estimados.
 \end{abstract}
 
 \tableofcontents
@@ -299,13 +311,117 @@ de Fiabilidad y Eficiencia de desempeño de la Sección~\ref{sec:iso25010}.
 
 \section{Evaluación de calidad ISO/IEC 25010:2023}
 \label{sec:iso25010}
+
+Esta sección evalúa el sistema conforme al modelo de calidad
+ISO/IEC 25010:2023~\cite{iso25010:2023}, restringiéndose a las
+características para las que existe evidencia medida de forma directa
+sobre el sistema en ejecución.
+
+\subsection{Compatibilidad}
+
+La suite de pruebas de extremo a extremo con Playwright se ejecutó
+sobre tres motores de navegador: Chromium, Firefox y WebKit. La
+elección de WebKit responde a una limitación práctica del entorno de
+desarrollo, que no cuenta con hardware macOS disponible para probar
+Safari nativamente; WebKit es el motor de renderizado subyacente de
+Safari y constituye la alternativa más cercana disponible para
+integración continua sobre Linux. De las quince pruebas ejecutadas por
+navegador, nueve pasaron de forma consistente en los tres motores,
+mostrando el mismo patrón de éxito o falla independientemente del
+navegador. Las seis fallas restantes se atribuyeron a interferencia de
+red local durante la ejecución y no a incompatibilidades reales entre
+motores de renderizado, dado que ninguna de ellas mostró un patrón
+distinto entre navegadores. En el ámbito móvil, la compatibilidad se
+garantiza fijando \texttt{minSdk = 26} (Android 8.0), cubriendo la
+inmensa mayoría de dispositivos activos según las cifras públicas de
+distribución de versiones de Android.
+
+\subsection{Características no evaluadas al momento de este informe}
+
+Las características de Seguridad, Mantenibilidad, Fiabilidad y
+Eficiencia de desempeño que exige la guía no se reportan en esta
+sección con valores numéricos concretos, por las siguientes razones
+verificadas directamente sobre el repositorio del proyecto: la
+verificación de endpoints protegidos (Seguridad) se encuentra en
+redacción y no está confirmada al momento de este informe; la
+Mantenibilidad depende de la cobertura de código y la complejidad
+ciclomática de los cinco microservicios, de los cuales solo dos
+cuentan con cobertura verificada, según se documentó en la
+Sección~\ref{sec:pruebas}; y tanto la Fiabilidad (tasa de errores
+\texttt{5xx} bajo una hora de tráfico sostenido) como la Eficiencia de
+desempeño (latencia p95 bajo cincuenta usuarios concurrentes) dependen
+directamente de la campaña de pruebas de carga con Locust, que según
+se documentó en la Sección~\ref{sec:observabilidad} todavía no se ha
+ejecutado. Reportar estas características sin datos medidos
+constituiría una evaluación no honesta, contraria al criterio
+explícito de la guía de la práctica.
 % 5.4 de la guía (parte 2)
 
 \section{Reflexión ética}
 \label{sec:etica}
 
+El sistema SCLI gestiona información institucional sensible: horarios
+académicos, asignación de laboratorios y datos de uso vinculados a
+estudiantes y docentes de la carrera. Como futuro ingeniero de
+software, el autor reconoce que el diseño técnico de un sistema
+distribuido no es neutral respecto a las personas cuyos datos
+procesa. El Código de Ética de la Ingeniería de Software de ACM/IEEE-CS
+(1999)~\cite{acm2018code} establece, entre sus principios, la
+obligación de actuar en interés del público y de los clientes, y de
+mantener la integridad y la independencia del juicio profesional.
+
+Aplicado a este proyecto, esto se traduce en decisiones concretas ya
+tomadas: los endpoints del sistema deben exigir autenticación y
+autorización explícitas antes de exponer información institucional, y
+ninguna métrica de observabilidad debe registrar datos personales
+identificables más allá de lo estrictamente necesario para el
+diagnóstico técnico. También se traduce en una responsabilidad que
+excede lo técnico: reportar de forma honesta el estado real de las
+prácticas de calidad, como se hizo en las Secciones~\ref{sec:pruebas},
+\ref{sec:cicd}, \ref{sec:observabilidad} y \ref{sec:iso25010} de este
+informe, en lugar de presentar el sistema como más maduro de lo que
+realmente está. Ocultar limitaciones de cobertura, de observabilidad o
+de pruebas de carga no ejecutadas no solo constituye una falta
+académica, sino que replica, a menor escala, el mismo riesgo que el
+Código de Ética identifica en la práctica profesional: la pérdida de
+confianza de quienes dependen del criterio técnico del ingeniero de
+software para tomar decisiones informadas.
+
 \section{Conclusiones}
 \label{sec:conclusiones}
+
+La aplicación de la guía GA-SUM-06 / PE-U5 sobre el sistema SCLI
+permitió consolidar tres prácticas centrales de la ingeniería de
+aplicaciones distribuidas modernas. En primer lugar, la refactorización
+del microservicio \texttt{academico-laboratorios-service} hacia una
+arquitectura hexagonal, junto con la aplicación de los patrones
+Repository, Facade y Singleton, demostró en la práctica cómo el
+desacoplamiento entre dominio e infraestructura facilita tanto la
+evolución del código como su verificación mediante pruebas unitarias
+aisladas. En segundo lugar, la construcción de un pipeline de
+integración continua con ocho etapas diferenciadas --- desde el
+análisis estático hasta la verificación de salud del sistema completo
+desplegado con Docker Compose --- evidenció que la automatización de
+calidad no es un artefacto accesorio, sino una condición necesaria para
+sostener el ritmo de cambios de un sistema desarrollado por un equipo
+de cuatro personas sobre una rama compartida.
+
+El proceso de auditoría honesta que exigió este informe también dejó
+una lección metodológica: verificar directamente sobre el repositorio,
+en lugar de asumir que una práctica documentada equivale a una práctica
+ejecutada, permitió identificar limitaciones reales --- la campaña de
+carga con Locust sin ejecutar, la cobertura de tres microservicios sin
+confirmar, la ausencia de una demostración documentada del pipeline
+recuperándose de un fallo intencional --- que de otro modo habrían
+quedado invisibles hasta la defensa oral. Esta experiencia refuerza la
+convicción de que la calidad de un sistema distribuido no se demuestra
+por la presencia de herramientas de observabilidad y automatización,
+sino por la evidencia reproducible que esas herramientas efectivamente
+producen. El trabajo pendiente identificado en este informe --- ejecutar
+la campaña experimental de carga, completar la cobertura de los
+microservicios restantes y documentar la resiliencia del pipeline ante
+fallos --- constituye la ruta concreta hacia una evaluación completa y
+verificable del sistema.
 
 \bibliographystyle{ieeetr}
 \bibliography{referencias/bibliografia}
