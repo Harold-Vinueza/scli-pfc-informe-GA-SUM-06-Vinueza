@@ -39,8 +39,8 @@ Observabilidad, de la asignatura Aplicaciones Distribuidas, sobre el
 Sistema de Control de Laboratorios Informáticos (SCLI), desarrollado
 como Proyecto de Fin de Curso por el equipo FUVV. El sistema sigue una
 arquitectura de microservicios desplegados de forma independiente y
-comunicados a través de un \emph{API Gateway}, con persistencia
-distribuida sobre un clúster de CockroachDB.
+comunicados a través de un \emph{API Gateway}~\cite{newman2021building},
+con persistencia distribuida sobre un clúster de CockroachDB.
 
 Este documento se centra en el trabajo realizado por el autor sobre el
 microservicio \texttt{academico-laboratorios-service}, responsable de
@@ -88,7 +88,9 @@ definida en la capa de dominio, con su implementación correspondiente en
 la capa de infraestructura sobre Spring Data JPA. Esta decisión permite
 sustituir el mecanismo de persistencia sin alterar la lógica de negocio,
 y facilita las pruebas unitarias mediante dobles de prueba de los
-puertos de repositorio.
+puertos de repositorio, siguiendo el catálogo clásico de patrones de
+diseño reutilizables~\cite{gamma1994design} adaptado a un contexto de
+microservicios~\cite{richardson2018microservices}.
 
 \subsection{Patrón Facade}
 
@@ -127,7 +129,11 @@ consultas y transacciones frente al motor de persistencia utilizado en
 producción. En el nivel de extremo a extremo, la aplicación web se
 prueba con Playwright sobre tres motores de navegador (Chromium,
 Firefox y WebKit), y la aplicación móvil emplea pruebas instrumentadas
-con Espresso sobre un emulador Android API~34.
+con Espresso sobre un emulador Android API~34. Esta estrategia sigue
+las prácticas de pruebas automatizadas a gran escala descritas
+en~\cite{winters2020software} y responde a los retos específicos de
+prueba de sistemas basados en microservicios documentados
+en~\cite{testgen2025microservices}.
 
 \subsection{Pruebas sobre \texttt{academico-laboratorios-service}}
 
@@ -168,10 +174,127 @@ criterio de no presentar como medida un dato que no ha sido confirmado.
 
 \section{DevOps: CI/CD con GitHub Actions}
 \label{sec:cicd}
+
+\subsection{Estructura general del pipeline}
+
+El pipeline de integración continua del sistema
+SCLI~\cite{humble2010continuous,kim2021devops} está definido en
+\texttt{.github/workflows/ci.yml} y se activa ante eventos de
+\texttt{push} y \texttt{pull\_request}. Su diseño sigue el principio de
+automatizar las etapas de análisis estático, construcción, pruebas y
+empaquetado antes de que un cambio pueda considerarse listo para
+integrarse a la rama compartida, reduciendo el riesgo de introducir
+regresiones no detectadas. El pipeline está compuesto por ocho jobs,
+descritos en las siguientes subsecciones.
+
+Este diseño de pipeline multietapa coincide con las prácticas
+identificadas como más efectivas en la literatura sobre CI/CD para
+microservicios~\cite{shahin2017continuous,pratama2021implementation,thallapally2021implementing}.
+
+\subsection{Jobs de análisis estático y pruebas}
+
+El job \texttt{lint} ejecuta Checkstyle sobre los cinco microservicios
+backend y ESLint sobre la aplicación web, verificando el cumplimiento de
+un conjunto de reglas de estilo personalizado que evita los excesos del
+estilo Google por defecto, cubriendo comprobaciones como
+\texttt{AvoidStarImport}, \texttt{UnusedImports},
+\texttt{RedundantImport}, \texttt{NeedBraces}, \texttt{EqualsHashCode} y
+un límite de longitud de línea de 120 caracteres. El job
+\texttt{test-backend} ejecuta las pruebas unitarias y de integración de
+cada microservicio Java. El job \texttt{crdb-tests}, orientado a
+pruebas contra el clúster CockroachDB de la Entrega 3, permanece
+pendiente de completarse al momento de este informe. El job
+\texttt{test-web} ejecuta la suite de Vitest de la aplicación React, y
+el job \texttt{test-mobile} ejecuta las pruebas instrumentadas de la
+aplicación Android, incluida la suite \texttt{QrFlowTest} descrita en
+la Sección~\ref{sec:pruebas}.
+
+\subsection{Jobs de construcción y empaquetado}
+
+El job \texttt{build-mobile-apk} compila y publica el artefacto APK de
+la aplicación móvil mediante \texttt{actions/upload-artifact}. El job
+\texttt{build-images}, que depende de la finalización exitosa de
+\texttt{test-backend}, construye y publica en el registro de
+contenedores de GitHub (GHCR) una imagen Docker por cada uno de los seis
+componentes desplegables del sistema (\texttt{auth-service},
+\texttt{usuarios-service}, \texttt{academico-laboratorios-service},
+\texttt{reservas-solicitudes-service}, \texttt{api-gateway} y
+\texttt{web}), mediante una matriz de compilación paralela que etiqueta
+cada imagen con el hash del commit correspondiente.
+
+\subsection{Job de integración completa}
+
+El job \texttt{integration}, que depende de \texttt{build-images},
+levanta el sistema completo mediante \texttt{docker compose up -d
+--build} y espera activamente a que cada contenedor (bases de datos
+CockroachDB de cada dominio y los cinco microservicios) reporte estado
+\texttt{healthy} antes de continuar, con un máximo de sesenta intentos
+espaciados cada cinco segundos. Una vez que todos los servicios están
+saludables, el job verifica que el \emph{endpoint}
+\texttt{/actuator/health} del \texttt{api-gateway} responda
+correctamente, confirmando que el sistema es capaz de arrancar y
+comunicarse de extremo a extremo bajo las mismas condiciones que
+tendría en un entorno de despliegue real.
+
+\subsection{Limitación identificada}
+
+Al momento de este informe no se cuenta con evidencia documentada de la
+demostración explícita que exige la guía: un \emph{push} con un fallo
+intencional, seguido de la observación del pipeline en estado fallido,
+su corrección y la verificación del pipeline en estado exitoso. Esta
+demostración es un requisito pendiente que debería ejecutarse y
+documentarse con capturas antes de la defensa oral, dado que constituye
+condición necesaria según la propia guía de la práctica.
 % 5.3 de la guía
 
 \section{Observabilidad distribuida}
 \label{sec:observabilidad}
+
+\subsection{Instrumentación implementada}
+
+El microservicio \texttt{reservas-solicitudes-service} expone, mediante
+Spring Boot Actuator, los puntos de salud y métricas requeridos por la
+plataforma de observabilidad. Micrometer publica tanto métricas HTTP
+estándar como eventos propios del dominio de negocio (solicitudes
+creadas, transiciones de estado, aprobaciones, rechazos, cancelaciones y
+propuestas), registrados únicamente después de confirmar la transacción
+correspondiente. Esta decisión de diseño es relevante: un
+\emph{rollback} no debe contabilizarse como un evento de negocio
+exitoso, y un reintento idempotente no debe duplicar el conteo de una
+operación ya registrada.
+
+Prometheus mantiene una configuración de \emph{scrape} sobre el módulo
+de reservas, y el tablero de Grafana correspondiente reúne latencia
+HTTP, percentiles p50, p95 y p99, tasa de errores internos y contadores
+de operaciones de negocio. La instrumentación se complementa con
+cAdvisor, que aporta métricas de consumo de CPU, memoria y red a nivel
+de contenedor, siguiendo el enfoque de trazabilidad distribuida
+documentado en estudios industriales sobre observabilidad de
+microservicios~\cite{li2022enjoy}.
+
+\subsection{Limitación identificada: campaña de carga no ejecutada}
+
+Al momento de este informe, los archivos de configuración y el cableado
+del servicio de observabilidad constituyen una base reproducible, pero
+\textbf{la campaña de pruebas de carga con Locust, necesaria para
+producir valores reales de percentiles de latencia y tasa de errores
+bajo tráfico simulado, no se ha ejecutado todavía}. El archivo de
+resultados previsto para esta campaña
+(\texttt{experimentos/resultados/iso25010.csv}) contiene la estructura
+completa de veinte repeticiones planificadas entre los escenarios de
+eficiencia (cincuenta usuarios, cinco minutos) y fiabilidad (cincuenta
+usuarios, una hora), pero todas las columnas de resultados
+(\texttt{total\_requests}, \texttt{p95\_ms}, \texttt{p99\_ms},
+\texttt{failure\_rate\_percent}) permanecen vacías.
+
+Esta limitación se reporta de forma explícita, en lugar de completarse
+con valores estimados, porque cualquier cifra de latencia o tasa de
+error presentada sin haberse medido directamente constituiría una
+evaluación no honesta del sistema, contrario al criterio exigido por la
+guía de la práctica. La ejecución de esta campaña experimental queda
+identificada como el trabajo pendiente de mayor prioridad para
+completar tanto esta sección como la evaluación de las características
+de Fiabilidad y Eficiencia de desempeño de la Sección~\ref{sec:iso25010}.
 % 5.4 de la guía (parte 1)
 
 \section{Evaluación de calidad ISO/IEC 25010:2023}
